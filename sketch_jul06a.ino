@@ -25,7 +25,7 @@ bool verificarEstado(int lectura) {  // verifica la lectura del sensor para dete
   }
 }
 
-int obtain_Data(int lasser, int sensor) { // obtiene los datos del sensor de luz
+int obtain_Data(int lasser, int sensor) { // obtiene los datos del sensor de luz y reliza un promedio
   digitalWrite(lasser, HIGH);
   delay(50);
   int v1 = analogRead(sensor);
