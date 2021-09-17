@@ -17,7 +17,7 @@ void setup() {
 
 bool verificarEstado(int lectura) {  // verifica la lectura del sensor para determinar el estado de la tolva
   Serial.println(lectura);
-  if (lectura >= 550) {
+  if (lectura >= 750) {
     return (true);
   }
   else {
@@ -29,13 +29,13 @@ int obtain_Data(int lasser, int sensor) { // obtiene los datos del sensor de luz
   digitalWrite(lasser, HIGH);
   delay(50);
   int v1 = analogRead(sensor);
-  delay(1000);
+  delay(2000);
   int v2 = analogRead(sensor);
-  delay(1000);
+  delay(2000);
   int v3 = analogRead(sensor);
-  delay(1000);
+  delay(2000);
   int v4 = analogRead(sensor);
-  delay(1000);
+  delay(2000);
   int v5 = analogRead(sensor);
   delay(50);
   digitalWrite(lasser, LOW);
