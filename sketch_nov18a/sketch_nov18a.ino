@@ -14,11 +14,15 @@ char keys[rowsCount][columsCount] = {
   { '1','2','3', 'A' },
   { '4','5','6', 'B' },
   { '7','8','9', 'C' },
-  { '#','0','*', 'D' }
+  { '*','0','#', 'D' }
 };
-
+const int relePin = 2;
 const byte rowPins[rowsCount] = { 11, 10, 9, 8 };
 const byte columnPins[columsCount] = { 7, 6, 5, 4 };
+
+// Al enchufar el panel se asigna esta configuracion por defecto
+long defaultTimeOn = 10000; // 10 Segundos
+long defaultTimeOff = 10000; // 5 Minutos
 
 // Instancias de los perifericos
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire); //Pantalla
@@ -26,49 +30,43 @@ DHT dhtSensor(13,DHT11); //Sensor DHT11
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, columnPins, rowsCount, columsCount); //Teclado 4x4
 
 
-volatile int timeOn = 20;
-volatile int timeOff = 20;
-volatile int temperatura = 20;
-volatile int humedad = 20;
-
-
 void setup() {
   Serial.begin(9600); //debug
-
-  // Inicia la pantalla
-  display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
-  // Inicia el sensor
-  dhtSensor.begin();
+  display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS); // Inicia la pantalla
+  dhtSensor.begin(); // Inicia el sensor
+  pinMode(relePin, OUTPUT);
+  Serial.println("Configuracion Finalizada!");
 }
 
 void loop() {
-  menu();
-  delay(2000);
-  menuMarcha();
-  delay(2000);
-  menuParada();
-  delay(2000);
-  menuTemperatura();
-  delay(2000);
-  menuHumedad();
-  delay(2000);
-  vistaRapida(); // Muestra la temperatura y el ambiente actual
-  delay(2000);
-  display.clearDisplay();
-  readNumberKeypad();
-/*
-  // Ejemplo de texto dinámico
-  display.clearDisplay();             // Limpia la pantalla
-  display.setCursor(0, 0);
-  display.println(F("Contando..."));
-  for (int i = 0; i <= 10; i++) {
-    display.setCursor(0, 16);         // Posición del contador
-    display.print(F("Cuenta: "));
-    display.print(i);
-    display.display();                // Muestra los cambios
-    delay(500);
-  }*/
+  char option = readOptionsKeypad(defaultTimeOff);
+  if (option == '#'){
+    menu();
+    Serial.println("Menu Abierto");
+    char option = readOptionsKeypad(5000);
+    switch (option){
+      case 'A': menuMarcha();
+      break;
+      case 'B': menuParada();
+      break;
+      case 'C': menuTemperatura();
+      break;
+      case 'D': menuHumedad();
+      break;
+      case '*': vistaRapida();
+      break;
+      default: // Si pasa el tiempo de espera del teclado en readOptionsKeypad(), se apaga la pantalla y se continua con el ciclo normal
+        display.setCursor(0, 0);
+        display.println(F(" "));
+        display.display();
+        Serial.println("Menu No Invocado... Arrancar!");
+      break;
+    }
+  }
+  arranque(defaultTimeOn);
 }
+
+
 
 void menu(){
   display.clearDisplay();
@@ -97,10 +95,11 @@ void menuMarcha(){
   display.println(F("NUEVO"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(timeOn);
+  display.println(defaultTimeOff/100/60);
   display.setCursor(75, 27);
-  display.println(timeOn);
+  display.println(defaultTimeOn/100/60);
   display.display();
+  delay(2000);
 }
 
 void menuParada(){
@@ -118,10 +117,11 @@ void menuParada(){
   display.println(F("NUEVO"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(timeOff);
+  display.println(defaultTimeOn);
   display.setCursor(75, 27);
-  display.println(timeOff);
-  display.display(); 
+  display.println(defaultTimeOff);
+  display.display();
+  delay(2000);
 }
 
 void menuTemperatura(){
@@ -140,10 +140,11 @@ void menuTemperatura(){
   display.println(F("SENSADA"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(timeOff);
+  display.println(defaultTimeOff);
   display.setCursor(75, 27);
   display.println(temperaturaMedida);
   display.display();
+  delay(2000);
 }
 
 void menuHumedad(){
@@ -162,10 +163,11 @@ void menuHumedad(){
   display.println(F("SENSADA"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(timeOff);
+  display.println(defaultTimeOff);
   display.setCursor(75, 27);
   display.println(humedadMedida);
   display.display();
+  delay(2000);
 }
 
 void vistaRapida(){
@@ -189,30 +191,32 @@ void vistaRapida(){
   display.setCursor(75, 27);
   display.println(hum);
   display.display();
+  delay(5000);
 }
 
-void readNumberKeypad(){
-  char key = "";
-  while (key == "" && validationNumber(key)){
+char readOptionsKeypad(long stopTime){
+  Serial.println("Esperando al tecldo");
+  char key = '\0';
+  long startTime = millis();
+  
+  while ( (key == '\0') || ( (millis() - startTime) > stopTime) ){
     key = keypad.getKey();
   }
-  return (key);
+
+  if (key == '\0'){
+    key ='X';
+    Serial.println("No se presiono una tecla!");
+    return (key);
+  }else {
+    Serial.println("Tecla presionada!");
+    return (key);
+  }
 }
 
-void readOptionsKeypad(){
-  char key = "";
-  while (key == "" && !validationNumber(key)){
-    key = keypad.getKey();
-  }
-  return (key);
-}
-
-bool validationNumber(char key){ //valida si "key" contiene un numero o no! (true=es numero | false=no es numero
-  for (int i=0; i<=5; i++) {
-    char valores[i] = {'A','B','C','D','#','*'};
-    if (valores[i] == key){
-      return false;
-    }
-  }
-  return true;
+void arranque(long time){
+  digitalWrite(relePin, HIGH);
+  Serial.println("Arranque!");
+  delay(time);
+  digitalWrite(relePin, LOW);
+  Serial.println("Parada!");
 }
