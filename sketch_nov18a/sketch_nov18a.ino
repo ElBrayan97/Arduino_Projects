@@ -36,15 +36,37 @@ void setup() {
   dhtSensor.begin(); // Inicia el sensor
   pinMode(relePin, OUTPUT);
   Serial.println("Configuracion Finalizada!");
+
 }
 
-void loop() {
-  char option = readOptionsKeypad(defaultTimeOff);
-  if (option == '#'){
-    menu();
-    Serial.println("Menu Abierto");
-    char option = readOptionsKeypad(5000);
-    switch (option){
+void loop(){
+  long startTime = millis(); // Guardar el tiempo inicial
+
+  while (millis() - startTime < defaultTimeOff) { // Comprobar si el tiempo no ha excedido el límite
+    char key = keypad.getKey(); // Detectar tecla presionada
+    if (key == '#') { // Si es la tecla específica
+      Serial.println("Abriendo el Menu!");
+      menu();
+      return; // Salir de loop()
+    }
+  }
+  arranque(defaultTimeOn);
+}
+
+void menu(){
+  long startTime = millis();
+  display.clearDisplay();
+  display.setTextSize(2);             // Tamaño del texto
+  display.setTextColor(SSD1306_WHITE); // Color del texto
+  display.setCursor(0, 0);            // Posición del texto
+  display.println(F("A- MARCHA"));
+  display.println(F("B- PARADA"));
+  display.println(F("C- TEMPERA"));
+  display.println(F("D- HUMEDAD"));
+  display.display();
+  while (millis() - startTime < defaultTimeOff) { // Comprobar si el tiempo no ha excedido el límite
+    char key = keypad.getKey(); // Detectar tecla presionada
+    switch (key){
       case 'A': menuMarcha();
       break;
       case 'B': menuParada();
@@ -55,32 +77,12 @@ void loop() {
       break;
       case '*': vistaRapida();
       break;
-      default: // Si pasa el tiempo de espera del teclado en readOptionsKeypad(), se apaga la pantalla y se continua con el ciclo normal
-        display.setCursor(0, 0);
-        display.println(F(" "));
-        display.display();
-        Serial.println("Menu No Invocado... Arrancar!");
-      break;
     }
   }
-  arranque(defaultTimeOn);
-}
-
-
-
-void menu(){
-  display.clearDisplay();
-  display.setTextSize(2);             // Tamaño del texto
-  display.setTextColor(SSD1306_WHITE); // Color del texto
-  display.setCursor(0, 0);            // Posición del texto
-  display.println(F("A- MARCHA"));
-  display.println(F("B- PARADA"));
-  display.println(F("C- TEMPERA"));
-  display.println(F("D- HUMEDAD"));
-  display.display();
 }
 
 void menuMarcha(){
+  long startTime = millis();
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -100,6 +102,12 @@ void menuMarcha(){
   display.println(defaultTimeOn/100/60);
   display.display();
   delay(2000);
+  int key1 = readInt();
+  int key2 = readInt(); // Comprobar si el tiempo no ha excedido el límite
+  /////// ACA QUEDE ///////
+  // TENGO QUE HACER ALGO QUE MUESTRE LOS VALORES EN LA PANTALLA POR 10 SEGUNDOS, 
+  // CIERRE EL MENU E INICIE LA OPERACION AUTOMATICAMENTE O ESPERE A QUE SE PRESIONE
+  // UNA TECLA
 }
 
 void menuParada(){
@@ -170,7 +178,7 @@ void menuHumedad(){
   delay(2000);
 }
 
-void vistaRapida(){
+void vistaRapida(){ //muestra el menu rapido con los datos del DHT11
   int temp = dhtSensor.readTemperature();
   int hum = dhtSensor.readHumidity();
   display.clearDisplay();
@@ -194,26 +202,24 @@ void vistaRapida(){
   delay(5000);
 }
 
-char readOptionsKeypad(long stopTime){
-  Serial.println("Esperando al tecldo");
-  char key = '\0';
-  long startTime = millis();
-  
-  while ( (key == '\0') || ( (millis() - startTime) > stopTime) ){
-    key = keypad.getKey();
-  }
-
-  if (key == '\0'){
-    key ='X';
-    Serial.println("No se presiono una tecla!");
-    return (key);
-  }else {
-    Serial.println("Tecla presionada!");
-    return (key);
+int readInt(){ // espera a que se ingrese del teclado un valor y lo retorna
+  int key = ' ';
+  while(key == ' '){
+    char key = keypad.getKey();
+    if (isDigit(key)){
+      return key;
+    } else{
+      key = ' ';
+    }
   }
 }
 
-void arranque(long time){
+int concatInt(int a, int b){ // ingreso dos ints y los concatena
+  String s = String(a)+String(b);
+  return s.toInt();
+}
+
+void arranque(long time){ // Este metodo solo cambia el estado del rele por el tiempo configurado
   digitalWrite(relePin, HIGH);
   Serial.println("Arranque!");
   delay(time);
