@@ -21,9 +21,9 @@ const byte rowPins[rowsCount] = { 11, 10, 9, 8 };
 const byte columnPins[columsCount] = { 7, 6, 5, 4 };
 
 // Al enchufar el panel se asigna esta configuracion por defecto
-long defaultTimeOn = 10000; // 10 Segundos
-long defaultTimeOff = 10000; // 5 Minutos
-
+long defaultTimeOn = 5000; // 10 Segundos
+long defaultTimeOff = 5000; // 5 Minutos
+bool screenStatus = true; // Se enciende la pantalla
 // Instancias de los perifericos
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire); //Pantalla
 DHT dhtSensor(13,DHT11); //Sensor DHT11
@@ -31,6 +31,7 @@ Keypad keypad = Keypad(makeKeymap(keys), rowPins, columnPins, rowsCount, columsC
 
 
 void setup() {
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
   Serial.begin(9600); //debug
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS); // Inicia la pantalla
   dhtSensor.begin(); // Inicia el sensor
@@ -40,16 +41,22 @@ void setup() {
 }
 
 void loop(){
+  if (screenStatus==true){
+    screenStatus=false;
+    display.ssd1306_command(SSD1306_DISPLAYOFF);
+  }
   long startTime = millis(); // Guardar el tiempo inicial
-
   while (millis() - startTime < defaultTimeOff) { // Comprobar si el tiempo no ha excedido el límite
     char key = keypad.getKey(); // Detectar tecla presionada
     if (key == '#') { // Si es la tecla específica
       Serial.println("Abriendo el Menu!");
+      display.ssd1306_command(SSD1306_DISPLAYON);
+      screenStatus=true;
       menu();
       return; // Salir de loop()
     }
   }
+  
   arranque(defaultTimeOn);
 }
 
@@ -97,13 +104,20 @@ void menuMarcha(){
   display.println(F("NUEVO"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(defaultTimeOff/100/60);
+  display.println(defaultTimeOn/1000);  
+  display.display();
+  int key1 = readInt(); // Comprobar si el tiempo no ha excedido el límite
+  Serial.println(key1);
   display.setCursor(75, 27);
-  display.println(defaultTimeOn/100/60);
+  display.println(key1);
   display.display();
   delay(2000);
-  int key1 = readInt();
-  int key2 = readInt(); // Comprobar si el tiempo no ha excedido el límite
+  if (key1 != 0){
+    defaultTimeOn = (key1*1000L);
+    Serial.println(defaultTimeOn);
+  }else{
+    Serial.println("Variable key1=0");
+  }
   /////// ACA QUEDE ///////
   // TENGO QUE HACER ALGO QUE MUESTRE LOS VALORES EN LA PANTALLA POR 10 SEGUNDOS, 
   // CIERRE EL MENU E INICIE LA OPERACION AUTOMATICAMENTE O ESPERE A QUE SE PRESIONE
@@ -125,9 +139,9 @@ void menuParada(){
   display.println(F("NUEVO"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(defaultTimeOn);
+  display.println(defaultTimeOn/1000);
   display.setCursor(75, 27);
-  display.println(defaultTimeOff);
+  display.println(defaultTimeOff/1000);
   display.display();
   delay(2000);
 }
@@ -203,20 +217,39 @@ void vistaRapida(){ //muestra el menu rapido con los datos del DHT11
 }
 
 int readInt(){ // espera a que se ingrese del teclado un valor y lo retorna
-  int key = ' ';
-  while(key == ' '){
-    char key = keypad.getKey();
-    if (isDigit(key)){
-      return key;
+  Serial.println("Esperando teclado 1");
+  long time = millis();
+  char keyA = ' ';
+  char keyB = ' ';
+  while(keyA == ' ' || (millis()-time)>10000){ // Lectura digito decena
+    keyA = keypad.getKey();
+    if (isDigit(keyA)){
+      break;
+    } else if (keyA=='*'){
+      return (0);
     } else{
-      key = ' ';
+      keyA = ' ';
     }
   }
-}
-
-int concatInt(int a, int b){ // ingreso dos ints y los concatena
-  String s = String(a)+String(b);
-  return s.toInt();
+  delay(300);
+  Serial.println("Esperando teclado 2");
+  while (keyB == ' ' || (millis()-time)>10000){ //Lectura Unidad
+    keyB = keypad.getKey();
+    if (isDigit(keyB)){
+      break;
+    } else{
+      keyB = ' ';
+    }
+  }
+  char conCat[3];
+  conCat[0] = keyA;
+  conCat[1] = keyB;
+  conCat[2] = '\0';
+  if (conCat[0]== ' ' && conCat[1] == ' '){
+    return(0);
+  }else{
+    return atoi(conCat);
+  }
 }
 
 void arranque(long time){ // Este metodo solo cambia el estado del rele por el tiempo configurado
