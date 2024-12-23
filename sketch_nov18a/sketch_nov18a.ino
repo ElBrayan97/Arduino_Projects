@@ -21,9 +21,14 @@ const byte rowPins[rowsCount] = { 11, 10, 9, 8 };
 const byte columnPins[columsCount] = { 7, 6, 5, 4 };
 
 // Al enchufar el panel se asigna esta configuracion por defecto
-long defaultTimeOn = 5000; // 10 Segundos
-long defaultTimeOff = 5000; // 5 Minutos
+unsigned long defaultTimeOn = 10000; // 10 Segundos
+unsigned long defaultTimeOff = 300000; // 5 Minutos
+byte temp = 27;
+byte hum = 50;
+
 bool screenStatus = true; // Se enciende la pantalla
+
+
 // Instancias de los perifericos
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire); //Pantalla
 DHT dhtSensor(13,DHT11); //Sensor DHT11
@@ -31,21 +36,18 @@ Keypad keypad = Keypad(makeKeymap(keys), rowPins, columnPins, rowsCount, columsC
 
 
 void setup() {
-  display.ssd1306_command(SSD1306_DISPLAYOFF);
   Serial.begin(9600); //debug
   display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS); // Inicia la pantalla
   dhtSensor.begin(); // Inicia el sensor
   pinMode(relePin, OUTPUT);
   Serial.println("Configuracion Finalizada!");
-
+  display.ssd1306_command(SSD1306_SETCONTRAST);
+  display.ssd1306_command(200);
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
 }
 
 void loop(){
-  if (screenStatus==true){
-    screenStatus=false;
-    display.ssd1306_command(SSD1306_DISPLAYOFF);
-  }
-  long startTime = millis(); // Guardar el tiempo inicial
+  unsigned long startTime = millis(); // Guardar el tiempo inicial
   while (millis() - startTime < defaultTimeOff) { // Comprobar si el tiempo no ha excedido el límite
     char key = keypad.getKey(); // Detectar tecla presionada
     if (key == '#') { // Si es la tecla específica
@@ -53,11 +55,18 @@ void loop(){
       display.ssd1306_command(SSD1306_DISPLAYON);
       screenStatus=true;
       menu();
-      return; // Salir de loop()
+      key = ' ';
+      break; // Salir de loop()
+    }else if(key == '*'){
+      vistaRapida();
+      key = ' ';
     }
   }
-  
-  arranque(defaultTimeOn);
+  if (screenStatus == true){
+    screenStatus = false;
+    display.ssd1306_command(SSD1306_DISPLAYOFF);
+  }
+  arranque(defaultTimeOn, temp, hum);
 }
 
 void menu(){
@@ -71,7 +80,7 @@ void menu(){
   display.println(F("C- TEMPERA"));
   display.println(F("D- HUMEDAD"));
   display.display();
-  while (millis() - startTime < defaultTimeOff) { // Comprobar si el tiempo no ha excedido el límite
+  while (millis() - startTime < 10000) { // Comprobar si el tiempo no ha excedido el límite
     char key = keypad.getKey(); // Detectar tecla presionada
     switch (key){
       case 'A': menuMarcha();
@@ -81,8 +90,6 @@ void menu(){
       case 'C': menuTemperatura();
       break;
       case 'D': menuHumedad();
-      break;
-      case '*': vistaRapida();
       break;
     }
   }
@@ -108,15 +115,15 @@ void menuMarcha(){
   display.display();
   int key1 = readInt(); // Comprobar si el tiempo no ha excedido el límite
   Serial.println(key1);
-  display.setCursor(75, 27);
-  display.println(key1);
-  display.display();
-  delay(2000);
   if (key1 != 0){
+    display.setCursor(75, 27);
+    display.println(key1);
+    display.display();
+    delay(2000);
     defaultTimeOn = (key1*1000L);
     Serial.println(defaultTimeOn);
   }else{
-    Serial.println("Variable key1=0");
+    Serial.println("Se presiono *");
   }
   /////// ACA QUEDE ///////
   // TENGO QUE HACER ALGO QUE MUESTRE LOS VALORES EN LA PANTALLA POR 10 SEGUNDOS, 
@@ -125,6 +132,7 @@ void menuMarcha(){
 }
 
 void menuParada(){
+  long startTime = millis();
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -139,15 +147,23 @@ void menuParada(){
   display.println(F("NUEVO"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(defaultTimeOn/1000);
-  display.setCursor(75, 27);
-  display.println(defaultTimeOff/1000);
+  display.println(defaultTimeOff/1000/60);
   display.display();
-  delay(2000);
+  int key1 = readInt();
+  Serial.println(key1);
+  if (key1 != 0){
+    display.setCursor(75, 27);
+    display.println(key1);
+    display.display();
+    delay(2000);
+    defaultTimeOff = (key1*1000L*60L);
+    Serial.println(defaultTimeOff);
+  }else{
+    Serial.println("Se presiono *");
+  }
 }
 
-void menuTemperatura(){
-  int temperaturaMedida = 0;
+byte menuTemperatura(){
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -162,11 +178,20 @@ void menuTemperatura(){
   display.println(F("SENSADA"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(defaultTimeOff);
-  display.setCursor(75, 27);
-  display.println(temperaturaMedida);
+  display.println(temp); // temperatura a partir de la cual se activa la bomba
   display.display();
-  delay(2000);
+  byte key = readInt();
+  Serial.println(key);
+  if (key != 0){
+    display.setCursor(75, 27);
+    display.println(key);
+    display.display();
+    delay(2000);
+    temp = key;
+    Serial.println(key);
+  }else{
+    Serial.println("Se presiono *");
+  }
 }
 
 void menuHumedad(){
@@ -185,16 +210,27 @@ void menuHumedad(){
   display.println(F("SENSADA"));
   display.setCursor(5, 27);
   display.setTextSize(4);
-  display.println(defaultTimeOff);
-  display.setCursor(75, 27);
-  display.println(humedadMedida);
+  display.println(hum);
   display.display();
-  delay(2000);
+  byte key = readInt();
+  Serial.println(key);
+  if (key != 0){
+    display.setCursor(75, 27);
+    display.println(key);
+    display.display();
+    delay(2000);
+    hum = key;
+    Serial.println(key);
+  }else{
+    Serial.println("Se presiono *");
+  }
 }
 
 void vistaRapida(){ //muestra el menu rapido con los datos del DHT11
   int temp = dhtSensor.readTemperature();
   int hum = dhtSensor.readHumidity();
+  display.ssd1306_command(SSD1306_DISPLAYON);
+  delay(100);
   display.clearDisplay();
   display.setTextSize(1);             // Tamaño del texto
   display.setTextColor(SSD1306_WHITE); // Color del texto
@@ -214,6 +250,7 @@ void vistaRapida(){ //muestra el menu rapido con los datos del DHT11
   display.println(hum);
   display.display();
   delay(5000);
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
 }
 
 int readInt(){ // espera a que se ingrese del teclado un valor y lo retorna
@@ -252,10 +289,16 @@ int readInt(){ // espera a que se ingrese del teclado un valor y lo retorna
   }
 }
 
-void arranque(long time){ // Este metodo solo cambia el estado del rele por el tiempo configurado
-  digitalWrite(relePin, HIGH);
-  Serial.println("Arranque!");
-  delay(time);
-  digitalWrite(relePin, LOW);
-  Serial.println("Parada!");
+void arranque(unsigned long time, byte T, byte H){ // Este metodo solo cambia el estado del rele por el tiempo configurado
+  byte actual_temp = dhtSensor.readTemperature();
+  byte actual_hum = dhtSensor.readHumidity();
+  if (actual_temp >= T || actual_hum >= H){
+    digitalWrite(relePin, HIGH);
+    Serial.println("Arranque!");
+    delay(time);
+    digitalWrite(relePin, LOW);
+    Serial.println("Parada!");
+  }else{
+    Serial.println("No se cumplen las condiciones");
+  }
 }
